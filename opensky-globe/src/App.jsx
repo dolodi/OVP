@@ -32,6 +32,18 @@ function formatSnapshotTime(value) {
   return new Date(value * 1000).toLocaleString()
 }
 
+function formatDuration(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return 'N/A'
+  }
+
+  if (value < 1000) {
+    return `${value} ms`
+  }
+
+  return `${(value / 1000).toFixed(1)} s`
+}
+
 function getPointColor(flight) {
   if (flight.onGround) {
     return '#ff7b72'
@@ -77,6 +89,7 @@ function App() {
   const [snapshot, setSnapshot] = useState([])
   const [summary, setSummary] = useState(null)
   const [usage, setUsage] = useState(null)
+  const [cacheInfo, setCacheInfo] = useState(null)
   const [requestStatus, setRequestStatus] = useState('idle')
   const [statusMessage, setStatusMessage] = useState('Waiting for the first OpenSky request.')
   const [lastFetchedAt, setLastFetchedAt] = useState(null)
@@ -104,10 +117,11 @@ function App() {
         setSnapshot(payload.states)
         setSummary(payload.summary)
         setUsage(payload.usage)
+        setCacheInfo(payload.cache)
         setLastFetchedAt(payload.fetchedAt)
         setRequestStatus('success')
         setStatusMessage(
-          `Fetched ${formatNumber(payload.summary.stateCount)} live state vectors successfully.`,
+          `Served ${formatNumber(payload.summary.stateCount)} live state vectors from ${payload.cache?.source || 'the server cache'}.`,
         )
       } catch (error) {
         if (!isMounted) {
@@ -240,6 +254,14 @@ function App() {
               <dd>{usage?.retryAfterSeconds ? `${usage.retryAfterSeconds}s` : 'N/A'}</dd>
             </div>
             <div>
+              <dt>Cache source</dt>
+              <dd>{cacheInfo?.source || 'N/A'}</dd>
+            </div>
+            <div>
+              <dt>Cache age</dt>
+              <dd>{formatDuration(cacheInfo?.ageMs)}</dd>
+            </div>
+            <div>
               <dt>Credit cost</dt>
               <dd>{usage?.creditCost ?? 4}</dd>
             </div>
@@ -247,11 +269,16 @@ function App() {
               <dt>Server latency</dt>
               <dd>{usage?.durationMs ? `${usage.durationMs} ms` : 'N/A'}</dd>
             </div>
+            <div>
+              <dt>Next refresh</dt>
+              <dd>{cacheInfo?.nextRefreshAt ? formatTimestamp(cacheInfo.nextRefreshAt) : 'N/A'}</dd>
+            </div>
           </dl>
 
           <div className="status-note">
             <h3>Current response</h3>
             <p>{statusMessage}</p>
+            {cacheInfo?.isStale ? <p>The app is showing the most recent cached snapshot while the server waits for the next allowed refresh.</p> : null}
           </div>
         </aside>
       </section>
